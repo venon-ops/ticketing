@@ -10,6 +10,12 @@ import HomePage from './pages/HomePage';
 import { ArtistPage } from './pages/ArtistPage';
 import OrganizationLoginPage from './pages/OrganizationLoginPage';
 import OrganizationRegisterPage from './pages/OrganizationRegisterPage';
+import OrganizationDashboardPage from './pages/OrganizationDashboardPage';
+import CreateEventPage from './pages/CreateEventPage';
+import EventDetailPage from './pages/EventDetailPage';
+import EventArtistsPage from './pages/EventArtistsPage';
+
+
 
 export default function App() {
   return (
@@ -55,6 +61,11 @@ export default function App() {
         <Route path="/artist-profile" element={<ArtistProfilePage />} />
         <Route path="/organisation/login" element={<OrganizationLoginPage />} />
         <Route path="/organisation/register" element={<OrganizationRegisterPage />} />
+        <Route path="/organisation/dashboard" element={<OrganizationDashboardPage />} />
+        <Route path="/organisation/events/new" element={<CreateEventPage />} />
+        <Route path="/organisation/events/:eventId" element={<EventDetailPage />} />
+        <Route path="/organisation/events/:eventId/artists" element={<EventArtistsPage />} />
+        
       </Routes>
     </>
   );
