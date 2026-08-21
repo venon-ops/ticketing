@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { PlacesService } from './places.service';
@@ -52,7 +53,10 @@ export class PlacesController {
   }
 
   @Post(':id/reserve')
-  reserve(@Param('id') id: string) {
-    return this.placesService.reserve(id);
-  }
+reserve(
+  @Param('id') id: string,
+  @Req() request: { user: { id: string } },
+) {
+  return this.placesService.reserve(id, request.user.id);
+}
 }
