@@ -1,59 +1,99 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { createClient } from '@supabase/supabase-js';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
 
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_ANON_KEY!,
+);
+
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private readonly usersRepository: Repository<User>,
-  ) {}
+  async create(dto: CreateUserDto) {
+    const { email, password, role } = dto;
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 12);
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
 
-    const user = this.usersRepository.create({
-      ...createUserDto,
-      password: hashedPassword,
-    });
-
-    return this.usersRepository.save(user);
-  }
-
-  async findAll(): Promise<User[]> {
-    return this.usersRepository.find();
-  }
-
-  async findOne(id: string): Promise<User> {
-    const user = await this.usersRepository.findOneBy({ id });
-
-    if (!user) {
-      throw new NotFoundException(
-        `Utilisateur avec l'identifiant ${id} introuvable`,
-      );
+    if (existing) {
+      throw new ConflictException('Un compte avec cet email existe déjà');
     }
 
-    return user;
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({
+        email,
+        password_hash: hashedPassword,
+        role: role ?? 'user',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new ConflictException(error.message);
+    }
+
+    return user as unknown as User;
   }
 
-  async update(
-    id: string,
-    updateUserDto: UpdateUserDto,
-  ): Promise<User> {
-    const user = await this.findOne(id);
-
-    Object.assign(user, updateUserDto);
-
-    return this.usersRepository.save(user);
+  async findAll() {
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data as unknown as User[];
   }
 
-  async remove(id: string): Promise<void> {
-    const user = await this.findOne(id);
+  async findOne(id: string) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    await this.usersRepository.remove(user);
+    if (error || !data) {
+      throw new NotFoundException('User not found');
+    }
+    return data as unknown as User;
+  }
+
+  async update(id: string, dto: UpdateUserDto) {
+    const updateData: Record<string, unknown> = {};
+
+    if (dto.password) {
+      const bcrypt = require('bcrypt');
+      updateData.password_hash = await bcrypt.hash(dto.password, 10);
+    }
+    if (dto.email) updateData.email = dto.email;
+    if (dto.role) updateData.role = dto.role;
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('User not found');
+    }
+
+    return data as unknown as User;
+  }
+
+  async remove(id: string) {
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return { id };
   }
 }

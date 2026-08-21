@@ -1,48 +1,61 @@
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+﻿import { Routes, Route, Link } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PlacesPage from './pages/PlacesPage';
 import ReservationsPage from './pages/ReservationsPage';
+import ArtistProfilePage from './pages/ArtistProfilePage';
+import ArtistsPage from './pages/ArtistsPage';
+import FeedPage from './pages/FeedPage';
+import HomePage from './pages/HomePage';
+import { ArtistPage } from './pages/ArtistPage';
+import OrganizationLoginPage from './pages/OrganizationLoginPage';
+import OrganizationRegisterPage from './pages/OrganizationRegisterPage';
 
-function Header() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  // Ne pas afficher le header sur les pages de login / register
-  if (location.pathname === '/login' || location.pathname === '/register') {
-    return null;
-  }
-
-  function handleLogout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  }
-
+export default function App() {
   return (
-    <div style={{ padding: '10px 20px', borderBottom: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <div>
-        <a href="/places" style={{ marginRight: 15, textDecoration: 'none', color: 'inherit' }}>Places</a>
-        <a href="/reservations" style={{ textDecoration: 'none', color: 'inherit' }}>Mes réservations</a>
-      </div>
-      <button onClick={handleLogout}>Se déconnecter</button>
-    </div>
-  );
-}
+    <>
+      <nav style={{ marginBottom: 20 }}>
+        <Link to="/" style={{ marginRight: 10 }}>
+          Accueil
+        </Link>
+        <Link to="/login" style={{ marginRight: 10 }}>
+          Login
+        </Link>
+        <Link to="/register" style={{ marginRight: 10 }}>
+          Register
+        </Link>
+        <Link to="/places" style={{ marginRight: 10 }}>
+          Places
+        </Link>
+        <Link to="/reservations" style={{ marginRight: 10 }}>
+          Reservations
+        </Link>
+        <Link to="/artists" style={{ marginRight: 10 }}>
+          Artistes
+        </Link>
+        <Link to="/feed" style={{ marginRight: 10 }}>
+          Mon fil
+        </Link>
+        <Link to="/artist-profile" style={{ marginRight: 10 }}>
+          Profil artiste
+        </Link>
+      </nav>
 
-function App() {
-  return (
-    <div>
-      <Header />
       <Routes>
+        <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/places" element={<PlacesPage />} />
         <Route path="/reservations" element={<ReservationsPage />} />
-        <Route path="/" element={<Navigate to="/places" />} />
+        <Route path="/artists" element={<ArtistsPage />} />
+
+        <Route path="/artists/:artistId" element={<ArtistPage />} />
+
+        <Route path="/feed" element={<FeedPage />} />
+        <Route path="/artist-profile" element={<ArtistProfilePage />} />
+        <Route path="/organisation/login" element={<OrganizationLoginPage />} />
+        <Route path="/organisation/register" element={<OrganizationRegisterPage />} />
       </Routes>
-    </div>
+    </>
   );
 }
-
-export default App;

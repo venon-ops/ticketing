@@ -1,92 +1,112 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { createClient } from '@supabase/supabase-js';
 import { Reservation } from './entities/reservation.entity';
-import { Place } from '../places/entities/place.entity';
-import { User } from '../users/entities/user.entity';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_ANON_KEY!,
+);
+
 @Injectable()
 export class ReservationsService {
-  constructor(
-    @InjectRepository(Reservation)
-    private readonly reservationRepo: Repository<Reservation>,
-    @InjectRepository(Place)
-    private readonly placeRepo: Repository<Place>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-  ) {}
+  async create(dto: CreateReservationDto) {
+    const { user_id, place_id, status = 'pending' } = dto;
 
-  async create(userId: string, dto: CreateReservationDto) {
-    const place = await this.placeRepo.findOne({ where: { id: dto.placeId } });
-    if (!place) throw new NotFoundException('Place not found');
+    const { data, error } = await supabase
+      .from('reservations')
+      .insert({
+        user_id,
+        place_id,
+        status,
+      })
+      .select()
+      .single();
 
-    if (place.reserved >= place.capacity) {
-      throw new BadRequestException('No more places available');
+    if (error) {
+      throw new BadRequestException(error.message);
     }
 
-    const existing = await this.reservationRepo.findOne({
-      where: {
-        user: { id: userId },
-        place: { id: dto.placeId },
-        status: 'confirmed',
-      },
-    });
-    if (existing) {
-      throw new BadRequestException('You already have a reservation for this place');
+    return data as unknown as Reservation;
+  }
+
+  async findAll() {
+    const { data, error } = await supabase.from('reservations').select('*');
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+    return data as unknown as Reservation[];
+  }
+
+  async findAllByUser(userId: string) {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error) {
+      throw new BadRequestException(error.message);
     }
 
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-
-    const reservation = this.reservationRepo.create({
-      place,
-      user,
-      status: 'confirmed',
-    });
-
-    place.reserved += 1;
-    await this.placeRepo.save(place);
-
-    return this.reservationRepo.save(reservation);
+    return data as unknown as Reservation[];
   }
 
-  findAllByUser(userId: string) {
-    return this.reservationRepo.find({
-      where: { user: { id: userId } },
-      relations: { place: true },
-    });
+  async findOne(id: string) {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('Reservation not found');
+    }
+
+    return data as unknown as Reservation;
   }
 
-  findOne(id: string) {
-    return this.reservationRepo.findOne({
-      where: { id },
-      relations: { place: true, user: true },
-    });
+  async update(id: string, dto: UpdateReservationDto) {
+    const updateData: Record<string, unknown> = {};
+
+    if (dto.status) updateData.status = dto.status;
+    if (dto.user_id) updateData.user_id = dto.user_id;
+    if (dto.place_id) updateData.place_id = dto.place_id;
+
+    const { data, error } = await supabase
+      .from('reservations')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('Reservation not found');
+    }
+
+    return data as unknown as Reservation;
   }
 
   async cancel(id: string) {
-    const reservation = await this.findOne(id);
-    if (!reservation) throw new NotFoundException('Reservation not found');
+    const { data, error } = await supabase
+      .from('reservations')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .select()
+      .single();
 
-    if (reservation.status === 'cancelled') {
-      throw new BadRequestException('Reservation already cancelled');
+    if (error || !data) {
+      throw new NotFoundException('Reservation not found');
     }
 
-    const place = await this.placeRepo.findOne({ where: { id: reservation.place.id } });
-    if (place) {
-      place.reserved = Math.max(0, place.reserved - 1);
-      await this.placeRepo.save(place);
-    }
-
-    reservation.status = 'cancelled';
-    return this.reservationRepo.save(reservation);
+    return data as unknown as Reservation;
   }
 
   async remove(id: string) {
-    const reservation = await this.findOne(id);
-    if (!reservation) throw new NotFoundException('Reservation not found');
-    return this.reservationRepo.remove(reservation);
+    const { error } = await supabase.from('reservations').delete().eq('id', id);
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+    return { id };
   }
 }

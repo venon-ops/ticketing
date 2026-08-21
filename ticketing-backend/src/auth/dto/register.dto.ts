@@ -1,29 +1,39 @@
 import {
   IsEmail,
-  IsEnum,
+  IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
-  MinLength,
 } from 'class-validator';
 import { UserRole } from '../../users/entities/user.entity';
 
 export class RegisterDto {
-  @IsString()
-  @MinLength(1)
-  firstName: string;
-
-  @IsString()
-  @MinLength(1)
-  lastName: string;
-
   @IsEmail()
+  @IsNotEmpty()
   email: string;
 
   @IsString()
-  @MinLength(8)
+  @IsNotEmpty()
   password: string;
 
+  @IsString()
   @IsOptional()
-  @IsEnum(UserRole)
+  @IsIn([UserRole.USER, UserRole.ARTIST, UserRole.ORGANIZER])
   role?: UserRole;
+
+  @IsString()
+  @IsOptional()
+  stage_name?: string;
+
+  @IsString()
+  @IsOptional()
+  bio?: string;
+
+  @IsString()
+  @IsOptional()
+  organization_name?: string;
+
+  @IsString()
+  @IsOptional()
+  organization_description?: string;
 }

@@ -1,34 +1,8 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
-import { Place } from '../../places/entities/place.entity';
-import { User } from '../../users/entities/user.entity';
-
-@Entity()
 export class Reservation {
-  @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  @ManyToOne(() => Place, { onDelete: 'CASCADE' })
-  @JoinColumn()
-  place: Place;
-
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn()
-  user: User;
-
-  @Column({ default: 'confirmed' })
-  status: string;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  user_id: string;
+  place_id: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
 }
