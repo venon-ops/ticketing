@@ -1,91 +1,202 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
+﻿import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { getToken } from '../services/api';
 
-type Reservation = {
+type EventInfo = {
   id: string;
-  place: {
-    id: string;
-    name: string;
-    date: string;
-  };
-  status: string;
+  name: string;
+  date_start: string;
+  location_name?: string | null;
+  venue?: string | null;
+  image_url?: string | null;
 };
 
+type Ticket = {
+  id: string;
+  event_id: string;
+  status: string;
+  created_at: string;
+  events?: EventInfo | null;
+};
+
+function formatEventDate(date: string) {
+  return new Date(date).toLocaleString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function ReservationsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const navigate = useNavigate();
+
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cancelling, setCancelling] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      window.location.href = '/login';
-      return;
-    }
+    async function loadMyTickets() {
+      const token = getToken();
 
-    axios
-      .get<Reservation[]>('http://localhost:3000/reservations/mine', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => setReservations(res.data))
-      .catch(() => setError('Impossible de charger les réservations'));
-  }, []);
+      if (!token) {
+        navigate('/login');
+        return;
+      }
 
-  async function handleCancel(reservationId: string) {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setError('Non connecté');
-      return;
-    }
+      setLoading(true);
+      setError('');
 
-    setCancelling(reservationId);
-    setError('');
+      try {
+        const response = await fetch('http://localhost:3000/tickets/mine', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-    try {
-      await axios.post(
-        `http://localhost:3000/reservations/${reservationId}/cancel`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Impossible de charger vos billets.');
         }
-      );
-      // Recharger la liste
-      const res = await axios.get<Reservation[]>('http://localhost:3000/reservations/mine', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setReservations(res.data);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Échec de l’annulation');
-    } finally {
-      setCancelling(null);
+
+        setTickets(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        setError(err.message || 'Impossible de charger vos billets.');
+      } finally {
+        setLoading(false);
+      }
     }
+
+    loadMyTickets();
+  }, [navigate]);
+
+  const events = useMemo(() => {
+    const uniqueEvents = new Map<string, EventInfo>();
+
+    for (const ticket of tickets) {
+      const event = ticket.events;
+
+      if (event && !uniqueEvents.has(event.id)) {
+        uniqueEvents.set(event.id, event);
+      }
+    }
+
+    return Array.from(uniqueEvents.values()).sort(
+      (first, second) =>
+        new Date(first.date_start).getTime() -
+        new Date(second.date_start).getTime(),
+    );
+  }, [tickets]);
+
+  if (loading) {
+    return <main style={{ padding: 20 }}>Chargement de vos billets…</main>;
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: '20px auto' }}>
-      <h1>Mes réservations</h1>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {reservations.length === 0 ? (
-        <p>Aucune réservation.</p>
-      ) : (
-        <ul>
-          {reservations.map((r) => (
-            <li key={r.id} style={{ marginBottom: 10 }}>
-              {r.place.name} – {new Date(r.place.date).toLocaleString()} –{' '}
-              {r.status}
-              {r.status !== 'cancelled' && (
-                <button
-                  onClick={() => handleCancel(r.id)}
-                  disabled={cancelling === r.id}
-                  style={{ marginLeft: 10 }}
-                >
-                  {cancelling === r.id ? 'Annulation...' : 'Annuler'}
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+    <main style={{ maxWidth: 980, margin: '32px auto', padding: 20 }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
+        <div>
+          <p style={{ margin: '0 0 6px', color: '#555' }}>Espace client</p>
+          <h1 style={{ margin: 0 }}>Mes billets</h1>
+        </div>
+
+        <Link to="/upcoming">
+          <button type="button">Voir les événements</button>
+        </Link>
+      </header>
+
+      {error && (
+        <p
+          style={{
+            padding: 12,
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            color: '#b91c1c',
+            background: '#fef2f2',
+          }}
+        >
+          {error}
+        </p>
       )}
-    </div>
+
+      {events.length === 0 ? (
+        <section
+          style={{
+            border: '1px solid #ddd',
+            borderRadius: 12,
+            padding: 24,
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Aucun billet pour le moment</h2>
+          <p>Découvrez les événements à venir et réservez vos places.</p>
+
+          <Link to="/upcoming">
+            <button type="button">Découvrir les événements</button>
+          </Link>
+        </section>
+      ) : (
+        <section style={{ display: 'grid', gap: 16 }}>
+          {events.map((event) => (
+            <Link
+              key={event.id}
+              to={`/my-tickets/${event.id}`}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: event.image_url
+                  ? '180px minmax(0, 1fr)'
+                  : 'minmax(0, 1fr)',
+                color: 'inherit',
+                textDecoration: 'none',
+                border: '1px solid #ddd',
+                borderRadius: 12,
+                overflow: 'hidden',
+              }}
+            >
+              {event.image_url && (
+                <img
+                  src={event.image_url}
+                  alt={event.name}
+                  style={{
+                    display: 'block',
+                    height: '100%',
+                    minHeight: 160,
+                    width: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
+
+              <article style={{ padding: 18 }}>
+                <p style={{ margin: '0 0 8px', color: '#555' }}>
+                  {formatEventDate(event.date_start)}
+                </p>
+
+                <h2 style={{ margin: '0 0 8px' }}>{event.name}</h2>
+
+                <p style={{ margin: 0 }}>
+                  📍 {event.location_name || event.venue || 'Lieu à confirmer'}
+                </p>
+
+                <p style={{ margin: '16px 0 0', color: '#555' }}>
+                  Voir mes billets →
+                </p>
+              </article>
+            </Link>
+          ))}
+        </section>
+      )}
+    </main>
   );
 }

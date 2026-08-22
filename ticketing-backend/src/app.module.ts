@@ -11,6 +11,8 @@ import { FollowsModule } from './follows/follows.module';
 import { OrganizationsController } from './organizations/organizations.controller';
 import { EventsController } from './events/events.controller';
 import { EventArtistsController } from './event-artists/event-artists.controller';
+import { TicketPhasesController } from './ticket-phases/ticket-phases.controller';
+import { TicketsController } from './tickets/tickets.controller';
 
 @Module({
   imports: [
@@ -25,11 +27,13 @@ import { EventArtistsController } from './event-artists/event-artists.controller
     FollowsModule,
   ],
   controllers: [
-  AppController,
-  OrganizationsController,
-  EventsController,
-  EventArtistsController,
-],
+    AppController,
+    OrganizationsController,
+    EventsController,
+    EventArtistsController,
+    TicketPhasesController,
+    TicketsController,
+  ],
   providers: [AppService],
 })
 export class AppModule {}

@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { getToken } from '../services/api';
 
 interface Event {
@@ -25,7 +25,6 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Formulaire
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -35,7 +34,6 @@ export default function EventDetailPage() {
   const [capacity, setCapacity] = useState<number | ''>('');
   const [imageUrl, setImageUrl] = useState('');
   const [status, setStatus] = useState('draft');
-
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -45,18 +43,20 @@ export default function EventDetailPage() {
     }
 
     fetch(`http://localhost:3000/events/${eventId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     })
       .then(async (res) => {
         if (!res.ok) {
           const text = await res.text();
-          throw new Error(text || 'Impossible de charger l\'événement');
+          throw new Error(text || "Impossible de charger l'événement");
         }
+
         return res.json();
       })
       .then((data: Event) => {
         setEvent(data);
-
         setName(data.name || '');
         setDescription(data.description || '');
         setLocationName(data.location_name || '');
@@ -77,7 +77,10 @@ export default function EventDetailPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!token || !eventId) return;
+
+    if (!token || !eventId) {
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -106,13 +109,15 @@ export default function EventDetailPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || 'Impossible de mettre à jour l\'événement');
+        throw new Error(
+          data.message || "Impossible de mettre à jour l'événement",
+        );
       }
 
       setEvent(data);
       alert('Événement mis à jour');
     } catch (err: any) {
-      setError(err.message || 'Impossible de mettre à jour l\'événement');
+      setError(err.message || "Impossible de mettre à jour l'événement");
     } finally {
       setSaving(false);
     }
@@ -125,7 +130,10 @@ export default function EventDetailPage() {
   if (error || !event) {
     return (
       <div style={{ padding: 20 }}>
-        <p style={{ color: 'red' }}>{error || 'Événement non trouvé'}</p>
+        <p style={{ color: 'red' }}>
+          {error || 'Événement non trouvé'}
+        </p>
+
         <button onClick={() => navigate('/organisation/dashboard')}>
           Retour au dashboard
         </button>
@@ -134,17 +142,19 @@ export default function EventDetailPage() {
   }
 
   const googleMapsSrc = address
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(
+        address,
+      )}&z=15&output=embed`
     : '';
 
   return (
     <div style={{ maxWidth: 700, margin: '40px auto', padding: 20 }}>
-      <h1>Modifier l\'événement</h1>
+      <h1>Modifier l'événement</h1>
 
       <form onSubmit={handleSave}>
         <div style={{ marginBottom: 12 }}>
           <label>
-            Nom de l\'événement
+            Nom de l'événement
             <input
               type="text"
               value={name}
@@ -196,6 +206,7 @@ export default function EventDetailPage() {
         {address && (
           <div style={{ marginBottom: 16 }}>
             <p style={{ margin: '8px 0 4px' }}>Aperçu de la carte :</p>
+
             <iframe
               title="Google Maps"
               width="100%"
@@ -234,30 +245,37 @@ export default function EventDetailPage() {
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <label>
-            Capacité
-            <input
-              type="number"
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value ? Number(e.target.value) : '')}
-              min={1}
-              required
-              style={{ width: '100%', marginTop: 4 }}
-            />
-          </label>
-        </div>
+  <label>
+    Capacité totale de l'événement
+    <input
+      type="number"
+      inputMode="numeric"
+      value={capacity}
+      onKeyDown={(e) => {
+        if (['e', 'E', '+', '-', '.', ','].includes(e.key)) {
+          e.preventDefault();
+        }
+      }}
+      onChange={(e) => {
+        const value = e.target.value;
 
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            URL de l\'image (optionnelle)
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              style={{ width: '100%', marginTop: 4 }}
-            />
-          </label>
-        </div>
+        if (value === '') {
+          setCapacity('');
+          return;
+        }
+
+        if (/^\d+$/.test(value)) {
+          setCapacity(Number(value));
+        }
+      }}
+      min={1}
+      step={1}
+      required
+      placeholder="Ex. 200"
+      style={{ width: '100%', marginTop: 4 }}
+    />
+  </label>
+</div>
 
         <div style={{ marginBottom: 12 }}>
           <label>
@@ -268,7 +286,6 @@ export default function EventDetailPage() {
               style={{ width: '100%', marginTop: 4 }}
             >
               <option value="draft">Brouillon</option>
-              <option value="published">Publié</option>
               <option value="cancelled">Annulé</option>
               <option value="done">Terminé</option>
             </select>
@@ -278,16 +295,25 @@ export default function EventDetailPage() {
         {error && <p style={{ color: 'red' }}>{error}</p>}
 
         <button type="submit" disabled={saving}>
-          {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+          {saving
+            ? 'Enregistrement...'
+            : 'Enregistrer les modifications'}
         </button>
       </form>
 
       <div style={{ marginTop: 24 }}>
-        <button onClick={() => navigate(`/organisation/events/${eventId}/artists`)}>
+        <button
+          onClick={() =>
+            navigate(`/organisation/events/${eventId}/artists`)
+          }
+        >
           Programmer des artistes
         </button>
+
         <button
-          onClick={() => navigate(`/organisation/events/${eventId}/tickets`)}
+          onClick={() =>
+            navigate(`/organisation/events/${eventId}/tickets`)
+          }
           style={{ marginLeft: 10 }}
         >
           Gérer les billets

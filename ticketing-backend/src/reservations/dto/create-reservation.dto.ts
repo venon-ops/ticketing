@@ -1,14 +1,13 @@
-import { IsString, IsOptional, IsIn } from 'class-validator';
+import { IsInt, IsUUID, Min } from 'class-validator';
 
 export class CreateReservationDto {
-  @IsString()
-  user_id: string;
+  @IsUUID()
+  event_id: string;
 
-  @IsString()
-  place_id: string;
+  @IsUUID()
+  ticket_phase_id: string;
 
-  @IsString()
-  @IsOptional()
-  @IsIn(['pending', 'confirmed', 'cancelled'])
-  status?: 'pending' | 'confirmed' | 'cancelled';
+  @IsInt()
+  @Min(1)
+  quantity: number;
 }

@@ -1,11 +1,13 @@
 import {
-  Controller,
-  Post,
-  Get,
-  UseGuards,
-  Req,
+  BadRequestException,
   Body,
+  Controller,
+  Get,
+  NotFoundException,
   Param,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { createClient } from '@supabase/supabase-js';
@@ -16,20 +18,122 @@ const supabase = createClient(
 );
 
 @Controller('events')
-@UseGuards(AuthGuard('jwt'))
 export class EventsController {
-  @Post()
-  async createEvent(@Req() req: any, @Body() body: any) {
-    const userId = req.user.sub;
-
-    const { data: organization, error: orgError } = await supabase
+  private async getOwnedEvent(userId: string, eventId: string) {
+    const { data: organization, error: organizationError } = await supabase
       .from('organizations')
       .select('id')
       .eq('user_id', userId)
       .single();
 
-    if (orgError || !organization) {
-      throw new Error("Aucune organisation trouvée pour cet utilisateur");
+    if (organizationError || !organization) {
+      throw new BadRequestException(
+        'Aucune organisation trouvée pour cet utilisateur',
+      );
+    }
+
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .eq('organization_id', organization.id)
+      .single();
+
+    if (eventError || !event) {
+      throw new BadRequestException('Événement non trouvé ou non autorisé');
+    }
+
+    return event;
+  }
+
+  @Get('public/list')
+  async getPublicEvents() {
+    const now = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('events')
+      .select(
+        'id, name, description, location_name, venue, address, date_start, date_end, image_url',
+      )
+      .eq('status', 'published')
+      .gte('date_start', now)
+      .order('date_start', { ascending: true });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return data || [];
+  }
+
+  @Get('public/:id')
+  async getPublicEvent(@Param('id') id: string) {
+    const now = new Date().toISOString();
+
+    const { data: event, error } = await supabase
+      .from('events')
+      .select(
+        'id, name, description, location_name, venue, address, date_start, date_end, image_url, organization_id',
+      )
+      .eq('id', id)
+      .eq('status', 'published')
+      .gte('date_start', now)
+      .single();
+
+    if (error || !event) {
+      throw new NotFoundException('Événement non trouvé');
+    }
+
+    const { data: organization } = await supabase
+      .from('organizations')
+      .select('id, name, description')
+      .eq('id', event.organization_id)
+      .single();
+
+    const { data: artists, error: artistsError } = await supabase
+      .from('event_artists')
+      .select(
+        `
+          id,
+          slot_start,
+          slot_end,
+          notes,
+          artist:artist_id (
+            id,
+            stage_name,
+            bio
+          )
+        `,
+      )
+      .eq('event_id', id)
+      .order('slot_start', { ascending: true });
+
+    if (artistsError) {
+      throw new BadRequestException(artistsError.message);
+    }
+
+    return {
+      ...event,
+      organization: organization || null,
+      artists: artists || [],
+    };
+  }
+
+  @Post()
+  @UseGuards(AuthGuard('jwt'))
+  async createEvent(@Req() req: any, @Body() body: any) {
+    const userId = req.user.id;
+
+    const { data: organization, error: organizationError } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (organizationError || !organization) {
+      throw new BadRequestException(
+        'Aucune organisation trouvée pour cet utilisateur',
+      );
     }
 
     const {
@@ -42,7 +146,6 @@ export class EventsController {
       date_end,
       capacity,
       image_url,
-      status,
     } = body;
 
     const { data: event, error } = await supabase
@@ -58,80 +161,62 @@ export class EventsController {
         date_end: date_end || null,
         capacity: capacity || null,
         image_url: image_url || null,
-        status: status || 'draft',
+        status: 'draft',
       })
       .select()
       .single();
 
     if (error || !event) {
-      throw new Error(error?.message || "Impossible de créer l'événement");
+      throw new BadRequestException(
+        error?.message || "Impossible de créer l'événement",
+      );
     }
 
     return event;
   }
 
   @Get('mine')
+  @UseGuards(AuthGuard('jwt'))
   async getMyEvents(@Req() req: any) {
-    const userId = req.user.sub;
+    const userId = req.user.id;
 
-    const { data: organization } = await supabase
+    const { data: organization, error } = await supabase
       .from('organizations')
       .select('id')
       .eq('user_id', userId)
       .single();
 
-    if (!organization) {
+    if (error || !organization) {
       return [];
     }
 
-    const { data: events } = await supabase
+    const { data: events, error: eventsError } = await supabase
       .from('events')
       .select('*')
       .eq('organization_id', organization.id)
       .order('date_start', { ascending: true });
 
+    if (eventsError) {
+      throw new BadRequestException(eventsError.message);
+    }
+
     return events || [];
   }
 
   @Get(':id')
-  async getEvent(@Param('id') id: string) {
-    const { data: event, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error || !event) {
-      throw new Error("Événement non trouvé");
-    }
-
-    return event;
+  @UseGuards(AuthGuard('jwt'))
+  async getEvent(@Req() req: any, @Param('id') id: string) {
+    return this.getOwnedEvent(req.user.id, id);
   }
 
   @Post(':id')
-  async updateEvent(@Req() req: any, @Param('id') id: string, @Body() body: any) {
-    const userId = req.user.sub;
-
-    const { data: organization } = await supabase
-      .from('organizations')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
-
-    if (!organization) {
-      throw new Error("Aucune organisation trouvée pour cet utilisateur");
-    }
-
-    const { data: event } = await supabase
-      .from('events')
-      .select('id')
-      .eq('id', id)
-      .eq('organization_id', organization.id)
-      .single();
-
-    if (!event) {
-      throw new Error("Événement non trouvé ou non autorisé");
-    }
+  @UseGuards(AuthGuard('jwt'))
+  async updateEvent(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const event = await this.getOwnedEvent(req.user.id, id);
 
     const {
       name,
@@ -146,7 +231,8 @@ export class EventsController {
       status,
     } = body;
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
+
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (location_name !== undefined) updateData.location_name = location_name;
@@ -156,7 +242,14 @@ export class EventsController {
     if (date_end !== undefined) updateData.date_end = date_end;
     if (capacity !== undefined) updateData.capacity = capacity;
     if (image_url !== undefined) updateData.image_url = image_url;
-    if (status !== undefined) updateData.status = status;
+
+    if (status !== undefined && status !== 'published') {
+      updateData.status = status;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return event;
+    }
 
     const { data: updatedEvent, error } = await supabase
       .from('events')
@@ -166,7 +259,81 @@ export class EventsController {
       .single();
 
     if (error || !updatedEvent) {
-      throw new Error(error?.message || "Impossible de mettre à jour l'événement");
+      throw new BadRequestException(
+        error?.message || "Impossible de mettre à jour l'événement",
+      );
+    }
+
+    return updatedEvent;
+  }
+
+  @Post(':id/publish')
+  @UseGuards(AuthGuard('jwt'))
+  async publishEvent(@Req() req: any, @Param('id') id: string) {
+    const event = await this.getOwnedEvent(req.user.id, id);
+
+    if (
+      !event.name ||
+      !event.location_name ||
+      !event.address ||
+      !event.date_start ||
+      !event.date_end ||
+      !event.capacity
+    ) {
+      throw new BadRequestException(
+        "Complète toutes les informations de l'événement avant publication",
+      );
+    }
+
+    const eventCapacity = Number(event.capacity);
+
+    if (!Number.isInteger(eventCapacity) || eventCapacity < 1) {
+      throw new BadRequestException(
+        "La capacité de l'événement doit être supérieure à zéro",
+      );
+    }
+
+    const { data: phases, error: phasesError } = await supabase
+      .from('ticket_phases')
+      .select('id, quantity_total, is_visible')
+      .eq('event_id', id);
+
+    if (phasesError) {
+      throw new BadRequestException(phasesError.message);
+    }
+
+    const visiblePhases = (phases || []).filter(
+      (phase) => phase.is_visible === true,
+    );
+
+    if (visiblePhases.length === 0) {
+      throw new BadRequestException(
+        'Crée au moins une phase de billets visible avant publication',
+      );
+    }
+
+    const totalTickets = visiblePhases.reduce(
+      (total, phase) => total + Number(phase.quantity_total),
+      0,
+    );
+
+    if (totalTickets > eventCapacity) {
+      throw new BadRequestException(
+        `Les billets configurés (${totalTickets}) dépassent la capacité de l'événement (${eventCapacity})`,
+      );
+    }
+
+    const { data: updatedEvent, error: updateError } = await supabase
+      .from('events')
+      .update({ status: 'published' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError || !updatedEvent) {
+      throw new BadRequestException(
+        updateError?.message || "Impossible de publier l'événement",
+      );
     }
 
     return updatedEvent;

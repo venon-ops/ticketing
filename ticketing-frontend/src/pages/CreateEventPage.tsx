@@ -11,7 +11,6 @@ export default function CreateEventPage() {
   const [dateEnd, setDateEnd] = useState('');
   const [capacity, setCapacity] = useState<number | ''>('');
   const [imageUrl, setImageUrl] = useState('');
-  const [status, setStatus] = useState('draft');
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +22,7 @@ export default function CreateEventPage() {
     setLoading(true);
 
     const token = getToken();
+
     if (!token) {
       setError('Non autorisé');
       setLoading(false);
@@ -39,25 +39,25 @@ export default function CreateEventPage() {
         body: JSON.stringify({
           name,
           description: description || undefined,
+          location_name: venue,
           venue,
-          address: address || undefined,
+          address,
           date_start: dateStart,
-          date_end: dateEnd || undefined,
-          capacity: capacity === '' ? undefined : Number(capacity),
+          date_end: dateEnd,
+          capacity: Number(capacity),
           image_url: imageUrl || undefined,
-          status,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || 'Impossible de créer l\'événement');
+        throw new Error(data.message || "Impossible de créer l'événement");
       }
 
-      navigate('/organisation/dashboard');
+      navigate(`/organisation/events/${data.id}/tickets`);
     } catch (err: any) {
-      setError(err.message || 'Impossible de créer l\'événement');
+      setError(err.message || "Impossible de créer l'événement");
     } finally {
       setLoading(false);
     }
@@ -67,10 +67,15 @@ export default function CreateEventPage() {
     <div style={{ maxWidth: 600, margin: '40px auto', padding: 20 }}>
       <h1>Créer un événement</h1>
 
+      <p>
+        Étape 1 sur 2 : renseigne les informations de la soirée. Après
+        sauvegarde, tu passeras à la création des phases de billets.
+      </p>
+
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 12 }}>
           <label>
-            Nom de l\'événement
+            Nom de l'événement
             <input
               type="text"
               value={name}
@@ -95,12 +100,13 @@ export default function CreateEventPage() {
 
         <div style={{ marginBottom: 12 }}>
           <label>
-            Lieu
+            Nom du lieu
             <input
               type="text"
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
               required
+              placeholder="Ex. Le Rex Club"
               style={{ width: '100%', marginTop: 4 }}
             />
           </label>
@@ -108,11 +114,13 @@ export default function CreateEventPage() {
 
         <div style={{ marginBottom: 12 }}>
           <label>
-            Adresse (optionnelle)
+            Adresse du lieu
             <input
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
+              required
+              placeholder="Ex. 5 boulevard Poissonnière, 75002 Paris"
               style={{ width: '100%', marginTop: 4 }}
             />
           </label>
@@ -133,61 +141,56 @@ export default function CreateEventPage() {
 
         <div style={{ marginBottom: 12 }}>
           <label>
-            Date et heure de fin (optionnelle)
+            Date et heure de fin
             <input
               type="datetime-local"
               value={dateEnd}
               onChange={(e) => setDateEnd(e.target.value)}
+              required
               style={{ width: '100%', marginTop: 4 }}
             />
           </label>
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <label>
-            Capacité (optionnelle)
-            <input
-              type="number"
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value ? Number(e.target.value) : '')}
-              min={1}
-              style={{ width: '100%', marginTop: 4 }}
-            />
-          </label>
-        </div>
+  <label>
+    Capacité totale de l'événement
+    <input
+      type="number"
+      inputMode="numeric"
+      value={capacity}
+      onKeyDown={(e) => {
+        if (['e', 'E', '+', '-', '.', ','].includes(e.key)) {
+          e.preventDefault();
+        }
+      }}
+      onChange={(e) => {
+        const value = e.target.value;
 
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            URL de l\'image (optionnelle)
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              style={{ width: '100%', marginTop: 4 }}
-            />
-          </label>
-        </div>
+        if (value === '') {
+          setCapacity('');
+          return;
+        }
 
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Statut
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              style={{ width: '100%', marginTop: 4 }}
-            >
-              <option value="draft">Brouillon</option>
-              <option value="published">Publié</option>
-              <option value="cancelled">Annulé</option>
-              <option value="done">Terminé</option>
-            </select>
-          </label>
-        </div>
+        if (/^\d+$/.test(value)) {
+          setCapacity(Number(value));
+        }
+      }}
+      min={1}
+      step={1}
+      required
+      placeholder="Ex. 200"
+      style={{ width: '100%', marginTop: 4 }}
+    />
+  </label>
+</div>
 
         {error && <p style={{ color: 'red' }}>{error}</p>}
 
         <button type="submit" disabled={loading}>
-          {loading ? 'Création...' : 'Créer l\'événement'}
+          {loading
+            ? 'Création...'
+            : 'Continuer vers la gestion des billets'}
         </button>
       </form>
     </div>

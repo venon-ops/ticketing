@@ -68,3 +68,12 @@ dist/
 
 # Fichiers de logs
 *.log
+
+# Règles supplémentaires (nettoyage préparatoire)
+**/node_modules/
+**/dist/
+coverage/
+*.pem
+*.key
+*.p12
+*.pfx
